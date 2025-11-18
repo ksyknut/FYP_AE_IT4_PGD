@@ -61,10 +61,10 @@ if test_start_idx >= test_end_idx:
 # Core parameters: paper-aligned hyperparameters
 LOOKBACK_WINDOW = 500    # Training window size
 REBALANCE_WINDOW = 60    # Test window size (rebalancing period)
-K = 60                  # Sparsity constraint (number of selected assets)
-rho = 5.0                # Penalty for sum-to-1 constraint
-delta = 0.008             # Turnover constraint (max weight change per period)
-h = 0.2                 # Max weight for single asset
+K = 150                  # Sparsity constraint (number of selected assets)
+rho = 3.0                # Penalty for sum-to-1 constraint
+delta = 0.02             # Turnover constraint (max weight change per period)
+h = 0.15                 # Max weight for single asset
 max_iter = 2000          # Max iterations for optimization
 tol = 1e-9               # Convergence tolerance
 
@@ -490,7 +490,7 @@ ax.legend(fontsize=11)
 ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
-save_path = r"F:\University\FYP\FYP_AE_IT4_PGD\test_results\init_results.png"
+save_path = r"F:\University\FYP\FYP_AE_IT4_PGD\test_results\now_results.png"
 plt.savefig(save_path, dpi=150, bbox_inches='tight')
 print(f"✓ Results saved to: {save_path}\n")
 plt.close()
