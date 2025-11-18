@@ -50,7 +50,7 @@ stock_cols = [col for col in df_log_return.columns if col != 'index']
 D, N = X_full.shape
 
 # Define test period range
-test_start_date = pd.to_datetime('2024-01-01')
+test_start_date = pd.to_datetime('2023-01-01')
 test_end_date = pd.to_datetime('2025-10-10')
 test_start_idx = np.searchsorted(dates_full, test_start_date, side='left')
 test_end_idx = np.searchsorted(dates_full, test_end_date, side='right')
@@ -58,38 +58,43 @@ if test_start_idx >= test_end_idx:
     raise ValueError(f"No data in test period! Data range: {dates_full.min().date()} - {dates_full.max().date()}")
 
 
-# Core parameters: paper-aligned hyperparameters
+# Tunable parameters
 LOOKBACK_WINDOW = 500    # Training window size
 REBALANCE_WINDOW = 60    # Test window size (rebalancing period)
-K = 60                  # Sparsity constraint (number of selected assets)
-rho = 5.0                # Penalty for sum-to-1 constraint
-delta = 0.008             # Turnover constraint (max weight change per period)
-h = 0.2                 # Max weight for single asset
+K = 120                  # Sparsity constraint (number of selected assets)
+rho = 1.0                # Penalty for sum-to-1 constraint
+delta = 0.01             # Turnover constraint (max weight change per period)
+h = 0.1                 # Max weight for single asset
 max_iter = 2000          # Max iterations for optimization
 tol = 1e-9               # Convergence tolerance
 
 
 # Baseline solver: unconstrained least squares (for comparison)
 def solve_baseline(X, y, w_prev=None):
-    if len(X) < 10:  # Handle small dataset
-        w = np.zeros(X.shape[1])
-        w[np.random.choice(X.shape[1], 150, replace=False)] = 1.0 / 150
-        return w
+
+    D, N = X.shape  
     
-    D, N = X.shape
-    # Objective: minimize prediction error
     def objective(w):
-        return np.sum((X @ w - y.flatten()) **2)
+        return np.sum((X @ w - y.flatten()) **2)    # ||Xw - y||²₂
     
-    # Constraints: sum to 1, non-negative weights
     constraints = [
-        {'type': 'eq', 'fun': lambda w: np.sum(w) - 1},
-        {'type': 'ineq', 'fun': lambda w: w},
+        {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},  # 1ᵀx = 1
+        {'type': 'ineq', 'fun': lambda w: w}  # x ≥ 0
     ]
     
-    w0 = np.ones(N) / N  # Initial guess: uniform weights
-    res = minimize(objective, w0, method='SLSQP', constraints=constraints,
-                   options={'maxiter': 500, 'ftol': 1e-9, 'disp': False})
+    # 初始猜测：均匀权重（满足sum=1和非负）
+    w0 = np.ones(N) / N  
+    
+    # 优化求解（使用SLSQP处理约束优化）
+    res = minimize(
+        objective, 
+        w0, 
+        method='SLSQP', 
+        constraints=constraints,
+        options={'maxiter': 500, 'ftol': 1e-9, 'disp': False}
+    )
+    
+    # 如果优化成功则返回结果，否则返回初始均匀权重
     return res.x if res.success else w0
 
 
@@ -119,7 +124,7 @@ class PGDSolverBase:
         hessian = 2 * ATA + self.rho * ones_matrix  # Hessian of objective function
         eigenvalues = np.linalg.eigvalsh(hessian)
         self.L = eigenvalues.max()  # Lipschitz constant
-        self.eta = 0.8 / self.L  # Learning rate (within (0, 1/L])
+        self.eta = 0.4 / self.L  # Learning rate (within (0, 1/L])
 
     # Initialize weights: use top-K assets from index weights or correlation
     def _get_baseline_init(self):
@@ -233,7 +238,7 @@ class MaskedIT4PGDSolver(PGDSolverBase):
         # Direction mask: 1 if residual and benchmark same direction, -1 otherwise
         direction_mask = np.sign(residual) * np.sign(self.y)
         # Weight errors: 3x penalty for opposite direction, 0.6x for same direction
-        error_weight = np.where(direction_mask < 0, 3.0, 0.6)  
+        error_weight = np.where(direction_mask < 0, 4.0, 0.6)  
         weighted_residual = residual * error_weight  # Apply weights
         
         grad_tracking = 2.0 * (self.X.T @ weighted_residual)  # Weighted tracking error gradient
@@ -490,7 +495,7 @@ ax.legend(fontsize=11)
 ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
-save_path = r"F:\University\FYP\FYP_AE_IT4_PGD\test_results\init_results.png"
+save_path = r"F:\University\FYP\FYP_AE_IT4_PGD\test_results\new_results.png"
 plt.savefig(save_path, dpi=150, bbox_inches='tight')
 print(f"✓ Results saved to: {save_path}\n")
 plt.close()
